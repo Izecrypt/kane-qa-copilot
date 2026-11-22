@@ -162,3 +162,44 @@ form, not wallet-gated, so Kane can drive the whole flow unassisted.
   testing, so manual recording is the reliable path). Registration/login,
   video recording, the 2 public posts, and the final kaneclihack.sh/o/submit
   click all remain owner actions.
+- 2026-11-23: owner confirmed registration/team/kane-cli setup steps 1-3 of
+  the submit flow are done; reached the actual kaneclihack.sh/o/submit form
+  and shared its real fields (Project name, One-liner 170ch, Project
+  details 1500ch, Anything else, Agent used, YouTube video, GitHub URL,
+  Live URL optional, Launch buzz links). Drafted exact copy for all text
+  fields (Project name: QA Copilot, not the org name; one-liner 144/170
+  chars; details 1195/1500 chars) sized to fit the real limits.
+  UI redesign: owner flagged the original UI as too plain before recording
+  (fair — Craft is 25% of the score). Rebuilt public/index.html: dark
+  theme, status pills, and a vertical timeline connecting each attempt so
+  the fail -> diagnose -> rewrite -> pass sequence is legible at a glance
+  instead of three flat divs. Verified live: ran the marketcube flow
+  through the new UI and it actually took 3 real attempts (2 genuine
+  failures, 2 real diagnoses, 1 pass) — richer demo material than the
+  earlier 2-attempt version, purely from re-running, not fabricated.
+  BYOK (bring-your-own-key): owner asked whether the live-URL idea could
+  work if visitors supply their own TestMu AI credentials instead of
+  sharing the owner's. Verified `kane-cli run` supports `--username`/
+  `--access-key` (stateless basic auth, no `kane-cli login` profile write)
+  and `--url <url>` (per-invocation target, no more global `config
+  set-url`) — both confirmed by a real run before touching the code.
+  Rebuilt the server around this: `REQUIRE_BYOK=true` env flag gates a
+  deployment into requiring every visitor's own TestMu AI username +
+  access key (plus optional own OpenRouter/Gemini key for the diagnose
+  step); nothing is ever persisted, used for one run and discarded; added
+  a basic per-IP rate limit (5/min) for that mode. Default (BYOK off)
+  behavior for local/dev use is unchanged — same `kane-cli login --oauth`
+  session and server `.env` keys as before, verified by re-running the
+  wifpool flow through it (one transient flake on a cold run, confirmed
+  non-regression on immediate retry). This solves the hackathon's own
+  "judges must be able to run it / hand over working credentials" rule
+  elegantly: a judge or any visitor signs up free on testmuai.com, gets
+  their own access key, and runs the live instance with it — no need to
+  ever hand over the owner's TestMu AI login.
+  Still NOT decided: whether to actually deploy to qacopilot.trenchesnetwork.xyz
+  (needs a VPS with Node + kane-cli + a real browser/Xvfb, DNS, reverse
+  proxy + TLS — none of that is done; the BYOK code above is deploy-ready
+  but sitting on the local machine only). Owner asked the architecture
+  question but hasn't confirmed the infra commitment; proceeded with the
+  code per the "ask once, default to the safe/reversible option, flag it"
+  rule since it's useful regardless of the deploy decision.

@@ -190,6 +190,21 @@
         <button type="button" class="example-btn" data-url="https://marketcube.trenchesnetwork.xyz" data-obj="Open the Vertical dropdown and select Automotive, then submit the form and confirm it was accepted">try: under-specified form flow</button>
       </div>
     </div>
+    <div class="field byok-field" id="byokFields" hidden>
+      <label for="kaneUsername">Your TestMu AI username + access key <span style="font-weight:400;color:var(--muted)">(free account at testmuai.com → Account → API Keys. Never stored — used for this run only.)</span></label>
+      <div style="display:flex;gap:8px;">
+        <input id="kaneUsername" placeholder="TestMu AI username" style="flex:1" />
+        <input id="kaneAccessKey" type="password" placeholder="Access key" style="flex:1" />
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <select id="llmProvider" style="font:inherit;padding:11px 13px;border-radius:9px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);">
+          <option value="">No LLM key (skip auto bug-report/rewrite)</option>
+          <option value="openrouter">OpenRouter key</option>
+          <option value="gemini">Gemini (Google AI) key</option>
+        </select>
+        <input id="llmKey" type="password" placeholder="Optional: your own LLM key" style="flex:1" />
+      </div>
+    </div>
     <button type="submit">Run with Kane CLI</button>
   </form>
 
@@ -207,14 +222,28 @@ document.querySelectorAll(".example-btn").forEach(btn => {
   });
 });
 
+let requireByok = false;
+fetch("/config").then(r => r.json()).then(cfg => {
+  requireByok = !!cfg.requireByok;
+  document.getElementById("byokFields").hidden = !requireByok;
+}).catch(() => {});
+
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const url = document.getElementById("url").value.trim();
   const objective = document.getElementById("objective").value.trim();
   const btn = form.querySelector("button[type=submit]");
+  const payload = { url, objective };
+  if (requireByok) {
+    payload.kaneUsername = document.getElementById("kaneUsername").value.trim();
+    payload.kaneAccessKey = document.getElementById("kaneAccessKey").value.trim();
+    const llmProvider = document.getElementById("llmProvider").value;
+    const llmKey = document.getElementById("llmKey").value.trim();
+    if (llmProvider && llmKey) { payload.llmProvider = llmProvider; payload.llmKey = llmKey; }
+  }
   btn.disabled = true;
   try {
-    const res = await fetch("/runs", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({url, objective}) });
+    const res = await fetch("/runs", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload) });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       alert(err.error || "Failed to start run");

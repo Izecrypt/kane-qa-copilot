@@ -8,6 +8,13 @@ import fs from "node:fs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 4173;
 const MAX_RETRIES = 2;
+// Public deployments should set REQUIRE_BYOK=true: every run then needs the
+// visitor's own TestMu AI username + access key (never the server's), and
+// the LLM diagnose step only runs if they also supply their own LLM key.
+// Local/dev use (recording the demo, etc.) leaves this off and falls back
+// to this machine's already-authenticated `kane-cli login` session and the
+// server's own OPENROUTER_API_KEY / GOOGLE_API_KEY.
+const REQUIRE_BYOK = String(process.env.REQUIRE_BYOK || "").toLowerCase() === "true";
 
 fs.mkdirSync(path.join(__dirname, "..", "data"), { recursive: true });
 const db = new Database(path.join(__dirname, "..", "data", "qa-copilot.sqlite"));
@@ -36,11 +43,21 @@ db.exec(`
   );
 `);
 
-/** Run one Kane CLI objective against the default-configured URL.
- * Returns the parsed run_end event (or null if the stream never produced one). */
-function runKaneObjective(objective) {
+/** Run one Kane CLI objective against a URL, passed inline (--url) so
+ * concurrent requests from different visitors never share mutable global
+ * config. kaneCreds = { username, accessKey } — when present, authenticates
+ * this one invocation as that visitor's own TestMu AI account via
+ * --username/--access-key (stateless basic auth, no profile written to
+ * disk); when absent, falls back to this machine's own `kane-cli login`
+ * session. Nothing from kaneCreds is ever logged, persisted, or returned
+ * to the client. Returns the parsed run_end event. */
+function runKaneObjective(objective, url, kaneCreds) {
   return new Promise((resolve, reject) => {
-    const child = spawn("kane-cli", ["run", objective, "--agent"], {
+    const args = ["run", objective, "--agent", "--url", url];
+    if (kaneCreds?.username && kaneCreds?.accessKey) {
+      args.push("--username", kaneCreds.username, "--access-key", kaneCreds.accessKey);
+    }
+    const child = spawn("kane-cli", args, {
       cwd: __dirname,
       env: process.env,
     });
@@ -65,11 +82,18 @@ function runKaneObjective(objective) {
     child.stderr.on("data", (c) => (stderr += c.toString()));
     child.on("close", (code) => {
       if (runEnd) return resolve(runEnd);
-      reject(new Error(`kane-cli exited ${code} with no run_end event. stderr: ${stderr.slice(0, 500)}`));
+      // Never echo raw stderr back when BYOK is in play — it can embed the
+      // access key in a CLI usage error. Keep the detail server-side only.
+      if (kaneCreds?.username) console.error(`kane-cli exited ${code}, stderr: ${stderr.slice(0, 2000)}`);
+      reject(new Error(
+        kaneCreds?.username
+          ? `kane-cli exited ${code} with no run_end event. Check your TestMu AI username/access key are correct.`
+          : `kane-cli exited ${code} with no run_end event. stderr: ${stderr.slice(0, 500)}`
+      ));
     });
     child.on("error", (err) => {
       if (err.code === "ENOENT") {
-        reject(new Error("kane-cli not found on PATH. Install it with: npm install -g @testmuai/kane-cli, then kane-cli login --oauth"));
+        reject(new Error("kane-cli not found on PATH. Install it with: npm install -g @testmuai/kane-cli"));
       } else {
         reject(err);
       }
@@ -77,22 +101,14 @@ function runKaneObjective(objective) {
   });
 }
 
-function setTargetUrl(url) {
-  return new Promise((resolve, reject) => {
-    const child = spawn("kane-cli", ["config", "set-url", url], { cwd: __dirname, env: process.env });
-    child.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`set-url failed (${code})`))));
-    child.on("error", reject);
-  });
-}
-
 /** Ask an LLM to read a Kane failure and (a) write a short bug report,
  * (b) propose a rewritten objective to disambiguate/narrow the flow.
  * This is the closed-loop step: the agent reads Kane's own evidence.
- * Tries OpenRouter first (OPENROUTER_API_KEY), falls back to Gemini
- * (GOOGLE_API_KEY) if OpenRouter has no credit or no key is set — both are
- * optional, and either being present is enough to drive the loop. */
-async function callOpenRouter(prompt) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+ * userLlmKey (optional, visitor-supplied) is tried first; otherwise falls
+ * back to this server's own OPENROUTER_API_KEY then GOOGLE_API_KEY, unless
+ * REQUIRE_BYOK is set, in which case a run with no visitor key just gets a
+ * degraded (non-LLM) bug report instead of spending the server's own money. */
+async function callOpenRouter(prompt, apiKey) {
   if (!apiKey) return null;
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -108,8 +124,7 @@ async function callOpenRouter(prompt) {
   return data?.choices?.[0]?.message?.content || "";
 }
 
-async function callGemini(prompt) {
-  const apiKey = process.env.GOOGLE_API_KEY;
+async function callGemini(prompt, apiKey) {
   if (!apiKey) return null;
   const model = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
   const res = await fetch(
@@ -126,7 +141,7 @@ async function callGemini(prompt) {
   return parts.map((p) => p.text || "").join("") || "";
 }
 
-async function diagnoseFailure({ url, objective, runEnd }) {
+async function diagnoseFailure({ url, objective, runEnd, llmCreds }) {
   const prompt = `You are a QA copilot. Kane CLI just ran a browser-automation flow and it FAILED.
 Target URL: ${url}
 Original plain-English objective: "${objective}"
@@ -136,11 +151,21 @@ Do two things, each on its own line, no extra commentary:
 1. BUG_REPORT: <one tight paragraph a developer could act on tonight — what broke, where, likely cause>
 2. REWRITTEN_OBJECTIVE: <a revised plain-English objective that disambiguates or narrows the flow so Kane CLI can complete it this time, or the single word NONE if no rewrite is likely to help>`;
 
+  // Visitor-supplied key (any provider they picked) tried first; then this
+  // server's own keys, unless BYOK is mandatory on this deployment.
+  const attempts = [];
+  if (llmCreds?.provider === "openrouter" && llmCreds?.key) attempts.push(() => callOpenRouter(prompt, llmCreds.key));
+  if (llmCreds?.provider === "gemini" && llmCreds?.key) attempts.push(() => callGemini(prompt, llmCreds.key));
+  if (!REQUIRE_BYOK || !llmCreds?.key) {
+    attempts.push(() => callOpenRouter(prompt, process.env.OPENROUTER_API_KEY));
+    attempts.push(() => callGemini(prompt, process.env.GOOGLE_API_KEY));
+  }
+
   let text = null;
   let lastErr = null;
-  for (const call of [callOpenRouter, callGemini]) {
+  for (const call of attempts) {
     try {
-      text = await call(prompt);
+      text = await call();
       if (text) break;
     } catch (err) {
       lastErr = err;
@@ -151,7 +176,7 @@ Do two things, each on its own line, no extra commentary:
       bugReport:
         lastErr
           ? `LLM diagnosis unavailable (${lastErr.message}). Kane CLI's own summary: ${runEnd.summary || runEnd.reason || "none"}`
-          : `Kane CLI reported FAIL for "${objective}" on ${url}: ${runEnd.summary || runEnd.reason || "no summary"}. (Set OPENROUTER_API_KEY or GOOGLE_API_KEY for auto bug reports + rewrites.)`,
+          : `Kane CLI reported FAIL for "${objective}" on ${url}: ${runEnd.summary || runEnd.reason || "no summary"}. (Add your own OpenRouter or Gemini key for an auto bug report + rewrite.)`,
       rewrittenObjective: null,
     };
   }
@@ -164,8 +189,7 @@ Do two things, each on its own line, no extra commentary:
   };
 }
 
-async function executeRun(runId, url, objective) {
-  await setTargetUrl(url);
+async function executeRun(runId, url, objective, kaneCreds, llmCreds) {
   let currentObjective = objective;
   let attemptNo = 1;
   let finalStatus = "failed";
@@ -173,7 +197,7 @@ async function executeRun(runId, url, objective) {
   while (attemptNo <= MAX_RETRIES + 1) {
     let runEnd;
     try {
-      runEnd = await runKaneObjective(currentObjective);
+      runEnd = await runKaneObjective(currentObjective, url, kaneCreds);
     } catch (err) {
       db.prepare(
         `INSERT INTO attempts (run_id, attempt_no, objective_used, verdict, summary) VALUES (?, ?, ?, 'error', ?)`
@@ -186,7 +210,7 @@ async function executeRun(runId, url, objective) {
     let rewrittenObjective = null;
 
     if (!passed && attemptNo <= MAX_RETRIES) {
-      const diagnosis = await diagnoseFailure({ url, objective: currentObjective, runEnd });
+      const diagnosis = await diagnoseFailure({ url, objective: currentObjective, runEnd, llmCreds });
       bugReport = diagnosis.bugReport;
       rewrittenObjective = diagnosis.rewrittenObjective;
     } else if (!passed) {
@@ -229,8 +253,25 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "..", "public")));
 
+// Minimal abuse guard for a public deployment: cap requests per IP per
+// minute. Each run still spends the VISITOR's own Kane/LLM credits when
+// REQUIRE_BYOK is on, but this keeps one IP from hammering the VPS.
+const rateWindow = new Map(); // ip -> [timestamps]
+function rateLimited(ip) {
+  const now = Date.now();
+  const windowMs = 60_000;
+  const limit = 5;
+  const hits = (rateWindow.get(ip) || []).filter((t) => now - t < windowMs);
+  hits.push(now);
+  rateWindow.set(ip, hits);
+  return hits.length > limit;
+}
+
 app.post("/runs", (req, res) => {
-  const { url, objective } = req.body || {};
+  if (REQUIRE_BYOK && rateLimited(req.ip)) {
+    return res.status(429).json({ error: "Too many runs from this IP — wait a minute and try again." });
+  }
+  const { url, objective, kaneUsername, kaneAccessKey, llmProvider, llmKey } = req.body || {};
   if (!url || !objective) return res.status(400).json({ error: "url and objective are required" });
   try {
     const parsed = new URL(url);
@@ -238,9 +279,15 @@ app.post("/runs", (req, res) => {
   } catch {
     return res.status(400).json({ error: "url must be a valid http(s) URL" });
   }
+  if (REQUIRE_BYOK && (!kaneUsername || !kaneAccessKey)) {
+    return res.status(400).json({ error: "This deployment requires your own TestMu AI username + access key (testmuai.com > Account > API Keys). Nothing is stored — it's used for this run only." });
+  }
+  const kaneCreds = kaneUsername && kaneAccessKey ? { username: kaneUsername, accessKey: kaneAccessKey } : null;
+  const llmCreds = llmProvider && llmKey ? { provider: llmProvider, key: llmKey } : null;
+
   const info = db.prepare(`INSERT INTO runs (url, objective) VALUES (?, ?)`).run(url, objective);
   const runId = info.lastInsertRowid;
-  executeRun(runId, url, objective).catch((err) => {
+  executeRun(runId, url, objective, kaneCreds, llmCreds).catch((err) => {
     db.prepare(`UPDATE runs SET status = 'error' WHERE id = ?`).run(runId);
     console.error(`Run ${runId} crashed:`, err);
   });
@@ -259,4 +306,9 @@ app.get("/runs/:id", (req, res) => {
   res.json({ ...run, attempts });
 });
 
-app.listen(PORT, () => console.log(`QA Copilot listening on http://localhost:${PORT}`));
+app.get("/config", (_req, res) => {
+  // Lets the frontend show/hide the BYOK fields without hardcoding it.
+  res.json({ requireByok: REQUIRE_BYOK });
+});
+
+app.listen(PORT, () => console.log(`QA Copilot listening on http://localhost:${PORT} (REQUIRE_BYOK=${REQUIRE_BYOK})`));
