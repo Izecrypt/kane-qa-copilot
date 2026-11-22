@@ -5,35 +5,191 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>QA Copilot — verified with Kane CLI</title>
 <style>
-  :root { color-scheme: light dark; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; line-height: 1.5; }
-  h1 { font-size: 1.4rem; margin-bottom: 4px; }
-  .sub { color: #666; margin-bottom: 24px; font-size: 0.95rem; }
-  form { display: grid; gap: 10px; margin-bottom: 32px; }
-  input, button { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid #ccc; }
-  button { cursor: pointer; background: #111; color: #fff; border: none; }
-  button:disabled { opacity: 0.5; cursor: wait; }
-  .run { border: 1px solid #ddd; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
-  .run h3 { margin: 0 0 6px; font-size: 1rem; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
-  .badge.passed { background: #d4f7dc; color: #0a6b2d; }
-  .badge.failed, .badge.error { background: #fde2e2; color: #a11313; }
-  .badge.running { background: #fff3cd; color: #8a6400; }
-  .attempt { border-left: 3px solid #eee; padding-left: 10px; margin-top: 10px; font-size: 0.92rem; }
-  .attempt.passed { border-color: #0a6b2d; }
-  .attempt.failed { border-color: #a11313; }
-  .bug { background: #fff8e6; padding: 8px 10px; border-radius: 6px; margin-top: 6px; }
-  .rewrite { color: #555; font-style: italic; margin-top: 4px; }
-  a { color: #0645ad; }
+  :root {
+    --bg: #0b0d12;
+    --panel: #11141b;
+    --panel-2: #161a23;
+    --border: #232835;
+    --text: #e8eaf0;
+    --muted: #8b93a7;
+    --accent: #6ea8fe;
+    --pass: #3ddc97;
+    --fail: #ff6b6b;
+    --rewrite: #f5c451;
+    --mono: "SF Mono", ui-monospace, "Cascadia Code", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 48px 20px 80px;
+    line-height: 1.55;
+  }
+  header { margin-bottom: 32px; }
+  .kicker {
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  h1 { font-size: 1.65rem; margin: 0 0 10px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 0.96rem; max-width: 620px; }
+
+  form {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    display: grid;
+    gap: 12px;
+    margin: 28px 0 40px;
+  }
+  .field label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  input {
+    width: 100%;
+    font: inherit;
+    font-family: var(--mono);
+    font-size: 0.88rem;
+    padding: 11px 13px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  .examples { display: flex; gap: 8px; flex-wrap: wrap; margin-top: -2px; }
+  .example-btn {
+    font-size: 0.74rem;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .example-btn:hover { border-color: var(--accent); color: var(--text); }
+  button[type="submit"] {
+    font: inherit;
+    font-weight: 600;
+    padding: 12px;
+    border-radius: 9px;
+    border: none;
+    background: var(--accent);
+    color: #06111f;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  button[type="submit"]:disabled { opacity: 0.5; cursor: wait; }
+
+  .empty {
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .run {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px 20px;
+    margin-bottom: 20px;
+    background: var(--panel);
+  }
+  .run-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  .run-head .target { font-family: var(--mono); font-size: 0.82rem; color: var(--muted); word-break: break-all; }
+  .run-objective { font-size: 0.95rem; margin: 6px 0 16px; }
+
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em;
+    text-transform: uppercase; white-space: nowrap;
+  }
+  .status-pill.passed { background: rgba(61,220,151,0.14); color: var(--pass); }
+  .status-pill.failed, .status-pill.error { background: rgba(255,107,107,0.14); color: var(--fail); }
+  .status-pill.running { background: rgba(245,196,81,0.14); color: var(--rewrite); }
+  .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .status-pill.running .dot { animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+  /* Timeline: each attempt is a step, connected by a vertical line.
+     This is the part that makes the closed loop legible at a glance. */
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before {
+    content: ""; position: absolute; left: 9px; top: 6px; bottom: 6px;
+    width: 2px; background: var(--border);
+  }
+  .step { position: relative; padding-bottom: 18px; }
+  .step:last-child { padding-bottom: 0; }
+  .step-marker {
+    position: absolute; left: -28px; top: 0;
+    width: 20px; height: 20px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.72rem; font-weight: 800;
+    border: 2px solid var(--bg);
+  }
+  .step.passed .step-marker { background: var(--pass); color: #061f14; }
+  .step.failed .step-marker, .step.error .step-marker { background: var(--fail); color: #2a0808; }
+  .step-title { font-size: 0.86rem; font-weight: 600; margin-bottom: 3px; }
+  .step-objective { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
+  .step-summary { font-size: 0.86rem; margin-bottom: 6px; }
+  .step-trace a {
+    font-size: 0.78rem; color: var(--accent); text-decoration: none;
+  }
+  .step-trace a:hover { text-decoration: underline; }
+  .bug {
+    background: rgba(255,107,107,0.08);
+    border-left: 3px solid var(--fail);
+    padding: 9px 12px; border-radius: 0 8px 8px 0;
+    font-size: 0.84rem; margin-top: 8px;
+  }
+  .bug strong { color: var(--fail); display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px; }
+  .rewrite-arrow {
+    display: flex; align-items: flex-start; gap: 8px;
+    margin-top: 10px; padding: 9px 12px;
+    background: rgba(245,196,81,0.08);
+    border-left: 3px solid var(--rewrite);
+    border-radius: 0 8px 8px 0;
+    font-size: 0.84rem;
+  }
+  .rewrite-arrow .arrow-icon { color: var(--rewrite); font-weight: 700; flex-shrink: 0; }
+  .rewrite-arrow strong { color: var(--rewrite); display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px; }
+  .rewrite-arrow .objective-text { font-family: var(--mono); }
+  .credits { font-size: 0.72rem; color: var(--muted); margin-top: 6px; }
 </style>
 </head>
 <body>
-  <h1>QA Copilot</h1>
-  <p class="sub">Paste a deployed URL and describe a flow in plain English. Kane CLI verifies it in a real browser; on failure, the agent reads Kane's own evidence, rewrites the objective, and retries — closing the loop instead of just reporting a result.</p>
+  <header>
+    <div class="kicker">QA Copilot · verified with Kane CLI</div>
+    <h1>Point it at a URL. Describe the flow. Watch it fix itself.</h1>
+    <p class="sub">Kane CLI runs your flow in a real browser. When it fails, the agent reads Kane's own evidence, rewrites the objective, and tries again — the loop plays out below, not just a pass/fail badge.</p>
+  </header>
 
   <form id="runForm">
-    <input id="url" placeholder="https://your-deployed-app.example" required />
-    <input id="objective" placeholder="Sign up with email and confirm the dashboard loads" required />
+    <div class="field">
+      <label for="url">Target URL</label>
+      <input id="url" placeholder="https://your-deployed-app.example" required />
+    </div>
+    <div class="field">
+      <label for="objective">Objective (plain English)</label>
+      <input id="objective" placeholder="Sign up with email and confirm the dashboard loads" required />
+      <div class="examples">
+        <button type="button" class="example-btn" data-url="https://marketcube.trenchesnetwork.xyz" data-obj="Open the Vertical dropdown and select Automotive, then submit the form and confirm it was accepted">try: under-specified form flow</button>
+      </div>
+    </div>
     <button type="submit">Run with Kane CLI</button>
   </form>
 
@@ -44,51 +200,81 @@ const form = document.getElementById("runForm");
 const runsEl = document.getElementById("runs");
 const polling = new Set();
 
+document.querySelectorAll(".example-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.getElementById("url").value = btn.dataset.url;
+    document.getElementById("objective").value = btn.dataset.obj;
+  });
+});
+
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const url = document.getElementById("url").value.trim();
   const objective = document.getElementById("objective").value.trim();
-  form.querySelector("button").disabled = true;
+  const btn = form.querySelector("button[type=submit]");
+  btn.disabled = true;
   try {
     const res = await fetch("/runs", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({url, objective}) });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Failed to start run");
+      return;
+    }
     const { id } = await res.json();
     poll(id);
     loadRuns();
   } finally {
-    form.querySelector("button").disabled = false;
+    btn.disabled = false;
   }
 });
 
-// All fields below originate from user input, Kane CLI evidence, or LLM
-// output — none of it is trusted, so every value is escaped before it is
-// interpolated into HTML.
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[c]));
 }
 
-function verdictBadge(v) {
+function statusPill(v) {
   const safe = escapeHtml(v);
-  return `<span class="badge ${safe}">${safe}</span>`;
+  return `<span class="status-pill ${safe}"><span class="dot"></span>${safe}</span>`;
+}
+
+function marker(verdict) {
+  if (verdict === "passed") return "✓";
+  if (verdict === "failed" || verdict === "error") return "✕";
+  return "…";
 }
 
 function renderRun(run) {
-  const attempts = (run.attempts || []).map(a => `
-    <div class="attempt ${escapeHtml(a.verdict)}">
-      <div>Attempt ${escapeHtml(a.attempt_no)}: ${verdictBadge(a.verdict)} — <em>${escapeHtml(a.objective_used)}</em></div>
-      ${a.summary ? `<div>${escapeHtml(a.summary)}</div>` : ""}
-      ${a.test_url ? `<div><a href="${encodeURI(a.test_url)}" target="_blank" rel="noopener noreferrer">Kane run trace ↗</a></div>` : ""}
-      ${a.bug_report ? `<div class="bug"><strong>Bug report:</strong> ${escapeHtml(a.bug_report)}</div>` : ""}
-      ${a.rewritten_objective ? `<div class="rewrite">→ agent rewrote the objective and retried: "${escapeHtml(a.rewritten_objective)}"</div>` : ""}
+  const attempts = run.attempts || [];
+  const steps = attempts.map((a) => `
+    <div class="step ${escapeHtml(a.verdict)}">
+      <div class="step-marker">${marker(a.verdict)}</div>
+      <div class="step-title">Attempt ${escapeHtml(a.attempt_no)} — ${statusPill(a.verdict)}</div>
+      <div class="step-objective">"${escapeHtml(a.objective_used)}"</div>
+      ${a.summary ? `<div class="step-summary">${escapeHtml(a.summary)}</div>` : ""}
+      ${a.test_url ? `<div class="step-trace"><a href="${encodeURI(a.test_url)}" target="_blank" rel="noopener noreferrer">View Kane CLI run trace ↗</a></div>` : ""}
+      ${a.bug_report ? `<div class="bug"><strong>Bug report</strong>${escapeHtml(a.bug_report)}</div>` : ""}
+      ${a.rewritten_objective ? `
+        <div class="rewrite-arrow">
+          <span class="arrow-icon">↻</span>
+          <div>
+            <strong>Agent rewrote the objective and retried</strong>
+            <span class="objective-text">${escapeHtml(a.rewritten_objective)}</span>
+          </div>
+        </div>` : ""}
+      ${a.credits_consumed != null ? `<div class="credits">${Number(a.credits_consumed).toFixed(1)} Kane CLI credits consumed</div>` : ""}
     </div>
   `).join("");
 
   return `
     <div class="run" id="run-${escapeHtml(run.id)}">
-      <h3>#${escapeHtml(run.id)} ${verdictBadge(run.status)} ${escapeHtml(run.url)}</h3>
-      <div>${escapeHtml(run.objective)}</div>
-      ${attempts}
+      <div class="run-head">
+        <div class="target">#${escapeHtml(run.id)} · ${escapeHtml(run.url)}</div>
+        ${statusPill(run.status)}
+      </div>
+      <div class="run-objective">${escapeHtml(run.objective)}</div>
+      <div class="timeline">${steps || '<div class="step"><div class="step-marker">…</div><div class="step-title">Starting Kane CLI run…</div></div>'}</div>
     </div>
   `;
 }
@@ -96,6 +282,10 @@ function renderRun(run) {
 async function loadRuns() {
   const res = await fetch("/runs");
   const runs = await res.json();
+  if (runs.length === 0) {
+    runsEl.innerHTML = `<div class="empty">No runs yet — paste a URL above and run your first flow, or click the example chip.</div>`;
+    return;
+  }
   for (const r of runs) {
     if (r.status === "running") poll(r.id);
   }
@@ -115,7 +305,7 @@ function poll(id) {
       clearInterval(interval);
       polling.delete(id);
     }
-  }, 2500);
+  }, 2000);
 }
 
 loadRuns();
