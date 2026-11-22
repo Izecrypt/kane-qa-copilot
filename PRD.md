@@ -71,3 +71,31 @@ talked to each other"), not just a demo that calls Kane once.
   installed locally and confirmed working (`kane-cli --version` 0.10.7, not
   yet logged in). PRD written. Build not started pending `kane-cli login`
   (owner email).
+- 2026-11-22 (later same session): owner registered on testmuai.com and
+  kaneclihack.sh with tobiobembeofficial@gmail.com. `kane-cli login --oauth`
+  completed (owner approved in browser). Balance 1200 credits. Verified a
+  real Kane CLI run against wifpool.trenchesnetwork.xyz (passed, 16.5
+  credits, evidence pack + shareable dashboard link) before writing any app
+  code, confirming the "must have run Kane CLI" eligibility bar.
+  Built the core app: Express + better-sqlite3, `POST /runs` shells out to
+  `kane-cli config set-url` then `kane-cli run "<objective>" --agent`,
+  parses the NDJSON stream for the `run_end` event. On FAIL, calls OpenRouter
+  (gpt-4o-mini; OPENAI_API_KEY in this environment was out of credits, so
+  the diagnose step uses OPENROUTER_API_KEY instead) with Kane's own
+  failure JSON, gets back a bug report and a rewritten objective, re-runs
+  Kane with it (max 2 retries total). Static single-page UI polls `/runs`.
+  End-to-end smoke test: a deliberately ambiguous "log in as admin" flow
+  against wifpool (which has no admin login) genuinely failed on attempt 1,
+  the LLM correctly diagnosed "wrong URL / no admin surface," rewrote the
+  objective, Kane re-ran it, failed again for the same real reason (no
+  admin dashboard exists) — confirms the closed loop talks both ways
+  instead of just reporting the first failure. One transient OpenRouter
+  rate-limit on attempt 2's diagnosis call was caught and surfaced as a bug
+  report string rather than crashing the run. Repo moved from /tmp to
+  ~/kane-qa-copilot (permanent location) and pushed to
+  github.com/Izecrypt/kane-qa-copilot (2 commits).
+  Remaining before submission: pick/polish the demo target app (a project
+  with a real signup or checkout flow would make a stronger demo than
+  wifpool's wallet-gated actions), record the 3-5 min video, 2+ public
+  posts (owner's own handle, not through automation), submit at
+  kaneclihack.sh/o/submit before 26 Nov 2026 11:59 PM IST.
