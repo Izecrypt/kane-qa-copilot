@@ -140,3 +140,25 @@ form, not wallet-gated, so Kane can drive the whole flow unassisted.
   Gemini, and only shows a degraded bug-report string if both are
   unavailable — the retry/rewrite logic itself never depended on which
   provider answered.
+- 2026-11-22 (continued): drafted the submission package so only the
+  identity-gated steps are left for the owner: SUBMISSION.md (the exact
+  "About your app" text for kaneclihack.sh/o/submit, matching the five
+  required fields — GitHub URL, about, video, live URL, launch buzz),
+  DRAFTS.md (X/LinkedIn/HN launch-post copy, owner's own handle, not
+  automated), DEMO_SCRIPT.md (a timed 4-minute live recording script keyed
+  to the exact marketcube objective text that is known to fail-then-pass,
+  so whoever records doesn't have to improvise). Reset the local DB to
+  empty so the recording captures a genuinely live first run, not replayed
+  history. Hardened the server: clear error message if the kane-cli binary
+  is missing (ENOENT) instead of a raw stack trace, and URL input
+  validation before a run starts (bad input fails fast with a 400 instead
+  of a confusing downstream Kane error).
+  Two things only the owner can do, asked and not yet confirmed: (1)
+  whether kaneclihack.sh/o/register (password-gated, separate from
+  testmuai.com) was completed — the submit form needs that login and I
+  can't enter a password; (2) whether to record the demo personally
+  following DEMO_SCRIPT.md, or have me attempt an automated capture
+  (ffmpeg screen-record on this machine failed a permission check in
+  testing, so manual recording is the reliable path). Registration/login,
+  video recording, the 2 public posts, and the final kaneclihack.sh/o/submit
+  click all remain owner actions.
