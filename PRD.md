@@ -48,20 +48,29 @@ talked to each other"), not just a demo that calls Kane once.
   small to actually ship.
 
 ## Demo script (for the 3-5 min video)
-1. Open QA Copilot, paste a real deployed URL (one of our own shipped
-   projects — candidate: wifpool.trenchesnetwork.xyz or izecube-lab) and an
-   objective in plain English.
-2. Show Kane CLI actually driving a real browser against it (video trace).
-3. Deliberately phrase one objective ambiguously so Kane fails it; show the
-   agent reading Kane's failure evidence, rewriting the objective, and the
-   second Kane run passing — the closed loop, on camera, undirected.
-4. Show the run history / bug report card.
+Target app: https://marketcube.trenchesnetwork.xyz/ (Izetech — a real lead-gen
+landing page with a genuine multi-field application form: name, company,
+role, vertical, price band, contact channel checkboxes, WhatsApp number,
+consent checkbox). Chosen over wifpool because its actions are a normal web
+form, not wallet-gated, so Kane can drive the whole flow unassisted.
+
+1. Open QA Copilot, paste the marketcube URL and an objective that is
+   deliberately under-specified (e.g. "select Automotive in the Vertical
+   dropdown and submit, confirm it was accepted").
+2. Kane runs it for real, skips the required fields, FAILS — shown live with
+   the Kane run trace link.
+3. The agent reads Kane's own run_end JSON, writes a bug report, and
+   rewrites the objective to require the missing fields and consent.
+4. Kane re-runs the rewritten objective and PASSES — on camera, undirected.
+5. Show the run history card with both attempts and the rewrite in between.
 
 ## Blocking items (owner action required, not code)
 - Register team + claim 10,000 TestMu AI credits: same email on
   kaneclihack.sh and testmuai.com (`kane-cli login`). Needs a real inbox the
   owner controls — not guessed. BLOCKS any authenticated Kane CLI run.
-- Confirm solo vs team.
+  DONE 2026-11-22 (see status log).
+- Confirm solo vs team. Still open — proceeding as solo (Izecube) by default;
+  flag if this should be a team entry.
 - 2+ public posts (X/HN/Reddit/LinkedIn) required to submit — handled by the
   owner personally per the no-automation-reveal rule on its_izecube; this is
   not posted through any bot account.
@@ -99,3 +108,35 @@ talked to each other"), not just a demo that calls Kane once.
   wifpool's wallet-gated actions), record the 3-5 min video, 2+ public
   posts (owner's own handle, not through automation), submit at
   kaneclihack.sh/o/submit before 26 Nov 2026 11:59 PM IST.
+- 2026-11-22 (owner picked the demo target): switched target to
+  https://marketcube.trenchesnetwork.xyz/ (Izetech lead-gen landing page,
+  owner's own live project, real multi-field application form, not
+  wallet-gated). Verified directly with `kane-cli run` (outside the app)
+  first: (1) a correctly-specified full application submission passed end
+  to end, confirmation message detected, 24.3 credits — this created one
+  real test lead clearly named "Kane CLI Hackathon Test (please ignore)",
+  owner should delete/ignore it in the Izetech pipeline; (2) an edge-case
+  flow (submit with consent unchecked, expecting a validation error) also
+  passed — the form's client-side validation is correctly built, so no real
+  bug exists there. Then ran the actual closed-loop demo through the QA
+  Copilot app end to end: objective "select Automotive in the Vertical
+  dropdown and submit" (deliberately missing the required name/company/
+  WhatsApp/consent fields) — attempt 1 FAILED for real (Kane: agent skipped
+  mandatory fields before submitting), the diagnose step (OpenRouter had
+  run out of trial credits mid-session — total_credits 0 confirmed via
+  /v1/credits — so added a Gemini fallback, see below) wrote a bug report
+  and rewrote the objective to include the missing fields, attempt 2
+  PASSED. Run id 6 is the canonical demo recording candidate; its two
+  attempts and the rewrite are visible in the UI as designed. This also
+  created a second real test lead on the Izetech form (dummy name
+  "Alex Morgan" / WhatsApp redacted-pattern from the direct-CLI probe, plus
+  one submitted through the app itself) — owner should clear these from
+  whatever inbox/CRM the Apply form feeds.
+  Also added a Gemini (GOOGLE_API_KEY, model gemini-flash-lite-latest)
+  fallback in diagnoseFailure() since the OPENROUTER_API_KEY in this
+  environment hit its credit ceiling mid-build (gpt-4o-mini via OpenRouter
+  worked for the first few diagnose calls, then started failing with
+  "exceeds available credits"). The app now tries OpenRouter first, then
+  Gemini, and only shows a degraded bug-report string if both are
+  unavailable — the retry/rewrite logic itself never depended on which
+  provider answered.
