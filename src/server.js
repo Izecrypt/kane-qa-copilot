@@ -81,24 +81,13 @@ function setTargetUrl(url) {
 
 /** Ask an LLM to read a Kane failure and (a) write a short bug report,
  * (b) propose a rewritten objective to disambiguate/narrow the flow.
- * This is the closed-loop step: the agent reads Kane's own evidence. */
-async function diagnoseFailure({ url, objective, runEnd }) {
+ * This is the closed-loop step: the agent reads Kane's own evidence.
+ * Tries OpenRouter first (OPENROUTER_API_KEY), falls back to Gemini
+ * (GOOGLE_API_KEY) if OpenRouter has no credit or no key is set — both are
+ * optional, and either being present is enough to drive the loop. */
+async function callOpenRouter(prompt) {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    return {
-      bugReport: `Kane CLI reported FAIL for "${objective}" on ${url}: ${runEnd.summary || runEnd.reason || "no summary"}. (Set OPENROUTER_API_KEY to get an auto-drafted bug report and a rewritten objective.)`,
-      rewrittenObjective: null,
-    };
-  }
-  const prompt = `You are a QA copilot. Kane CLI just ran a browser-automation flow and it FAILED.
-Target URL: ${url}
-Original plain-English objective: "${objective}"
-Kane CLI's own run_end evidence (JSON): ${JSON.stringify(runEnd).slice(0, 4000)}
-
-Do two things, each on its own line, no extra commentary:
-1. BUG_REPORT: <one tight paragraph a developer could act on tonight — what broke, where, likely cause>
-2. REWRITTEN_OBJECTIVE: <a revised plain-English objective that disambiguates or narrows the flow so Kane CLI can complete it this time, or the single word NONE if no rewrite is likely to help>`;
-
+  if (!apiKey) return null;
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -109,10 +98,57 @@ Do two things, each on its own line, no extra commentary:
     }),
   });
   const data = await res.json();
-  if (data.error) {
-    return { bugReport: `LLM diagnosis call failed: ${data.error.message || JSON.stringify(data.error)}`, rewrittenObjective: null };
+  if (data.error) throw new Error(`OpenRouter: ${data.error.message || JSON.stringify(data.error)}`);
+  return data?.choices?.[0]?.message?.content || "";
+}
+
+async function callGemini(prompt) {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) return null;
+  const model = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    }
+  );
+  const data = await res.json();
+  if (data.error) throw new Error(`Gemini: ${data.error.message || JSON.stringify(data.error)}`);
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  return parts.map((p) => p.text || "").join("") || "";
+}
+
+async function diagnoseFailure({ url, objective, runEnd }) {
+  const prompt = `You are a QA copilot. Kane CLI just ran a browser-automation flow and it FAILED.
+Target URL: ${url}
+Original plain-English objective: "${objective}"
+Kane CLI's own run_end evidence (JSON): ${JSON.stringify(runEnd).slice(0, 4000)}
+
+Do two things, each on its own line, no extra commentary:
+1. BUG_REPORT: <one tight paragraph a developer could act on tonight — what broke, where, likely cause>
+2. REWRITTEN_OBJECTIVE: <a revised plain-English objective that disambiguates or narrows the flow so Kane CLI can complete it this time, or the single word NONE if no rewrite is likely to help>`;
+
+  let text = null;
+  let lastErr = null;
+  for (const call of [callOpenRouter, callGemini]) {
+    try {
+      text = await call(prompt);
+      if (text) break;
+    } catch (err) {
+      lastErr = err;
+    }
   }
-  const text = data?.choices?.[0]?.message?.content || "";
+  if (!text) {
+    return {
+      bugReport:
+        lastErr
+          ? `LLM diagnosis unavailable (${lastErr.message}). Kane CLI's own summary: ${runEnd.summary || runEnd.reason || "none"}`
+          : `Kane CLI reported FAIL for "${objective}" on ${url}: ${runEnd.summary || runEnd.reason || "no summary"}. (Set OPENROUTER_API_KEY or GOOGLE_API_KEY for auto bug reports + rewrites.)`,
+      rewrittenObjective: null,
+    };
+  }
   const bugMatch = text.match(/BUG_REPORT:\s*(.+)/i);
   const rewriteMatch = text.match(/REWRITTEN_OBJECTIVE:\s*(.+)/i);
   const rewritten = rewriteMatch?.[1]?.trim();
