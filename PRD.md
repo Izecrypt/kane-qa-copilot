@@ -203,3 +203,49 @@ form, not wallet-gated, so Kane can drive the whole flow unassisted.
   question but hasn't confirmed the infra commitment; proceeded with the
   code per the "ask once, default to the safe/reversible option, flag it"
   rule since it's useful regardless of the deploy decision.
+
+- 2026-11-22/23: DEPLOYED to https://qacopilot.trenchesnetwork.xyz. Found
+  the real SSH access in the vault (root@152.53.176.112, default
+  ~/.ssh/id_ed25519 key — a stale note pointed at a different machine's
+  `~/.ssh/trenches_keys` path; verified via SSH before trusting it).
+  Server already had Node 20, Docker, nginx, certbot, and Chromium
+  installed (same box runs marketcube and other trenchesnetwork.xyz
+  sites) — copied marketcube's nginx pattern (127.0.0.1-only proxy,
+  per-route rate limiting, security headers) rather than inventing a new
+  one. Stack: `/opt/qacopilot` (git clone of the public repo),
+  `qacopilot.service` systemd unit (`REQUIRE_BYOK=true`, port 8724,
+  `Restart=on-failure`), nginx reverse proxy + Let's Encrypt via certbot.
+  Owner added the DNS A record personally (registrar access I don't have);
+  resolved within the first poll. Fixed the certbot contact email after
+  the fact (`certbot update_account`) — the first run used TestMu AI's own
+  support address by mistake, corrected to the owner's.
+  CAUGHT A REAL BUG before deploy: the BYOK cost-guard condition was
+  inverted (`!REQUIRE_BYOK || !llmCreds?.key` is true even when BYOK is
+  required and the visitor has no key — meaning the server's own paid
+  OpenRouter/Gemini keys would still have fired on a public instance with
+  no visitor key, the exact thing BYOK exists to prevent). Fixed to
+  `!REQUIRE_BYOK` only, verified, pushed, re-pulled on the server before
+  starting the service.
+  Verified end to end from outside the server (not just loopback): HTTPS
+  200 on `/`, valid Let's Encrypt cert (`SSL certificate verify ok`),
+  `/config` reports `requireByok: true`, `POST /runs` with no credentials
+  correctly rejected over the public internet, BYOK fields render in the
+  browser at the real public URL.
+  HONEST GAP, not swept under the rug: `kane-cli run` takes no
+  `--project-id`/`--folder-id` flag — project/folder selection lives on
+  the CLI profile, not passable per-request. A FAKE-credential smoke test
+  returned "no project/folder configured" rather than a clean auth
+  rejection, so it's inconclusive whether that was "bad auth" or "needs
+  project setup" — I don't have real TestMu AI credentials to test the
+  authenticated path (owner was asked, skipped providing them, which is
+  their call, not pushed further). Best guess, not verified: a brand-new
+  TestMu AI signup (the hackathon's own onboarding path — "claim 10,000
+  free credits" on a NEW account) almost certainly auto-selects its one
+  project, same as this machine's own `kane-cli login --oauth` did
+  ("Auto-selected project: KaneAI Generated") — so the common case (a
+  judge or visitor who just signed up) should work. A visitor with
+  multiple pre-existing TestMu AI projects has no way to pick one through
+  our stateless `--username`/`--access-key` calls and may hit this wall.
+  Owner should run one real test with their own key when convenient to
+  close this gap; not urgent since local/BYOK-off mode (used for the
+  recorded demo) never touches this code path at all.

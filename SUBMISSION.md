@@ -54,8 +54,11 @@ https://github.com/Izecrypt/kane-qa-copilot
 [PASTE YOUTUBE LINK HERE]
 
 ## Live URL (optional)
-[Leave blank unless deployed — see PRD.md "BYOK" section for the deploy
-plan if that gets greenlit before the deadline]
+https://qacopilot.trenchesnetwork.xyz
+(BYOK — bring your own free TestMu AI username + access key from
+testmuai.com. Nothing is stored. Known gap: tested with fake credentials
+only; a brand-new signup's auto-selected project should work, a visitor
+with multiple existing TestMu AI projects might not — see PRD.md.)
 
 ## Launch buzz (2+ public posts)
 [PASTE POST LINKS HERE — see DRAFTS.md for suggested copy]
