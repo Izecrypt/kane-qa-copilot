@@ -67,7 +67,13 @@ function runKaneObjective(objective) {
       if (runEnd) return resolve(runEnd);
       reject(new Error(`kane-cli exited ${code} with no run_end event. stderr: ${stderr.slice(0, 500)}`));
     });
-    child.on("error", reject);
+    child.on("error", (err) => {
+      if (err.code === "ENOENT") {
+        reject(new Error("kane-cli not found on PATH. Install it with: npm install -g @testmuai/kane-cli, then kane-cli login --oauth"));
+      } else {
+        reject(err);
+      }
+    });
   });
 }
 
@@ -226,6 +232,12 @@ app.use(express.static(path.join(__dirname, "..", "public")));
 app.post("/runs", (req, res) => {
   const { url, objective } = req.body || {};
   if (!url || !objective) return res.status(400).json({ error: "url and objective are required" });
+  try {
+    const parsed = new URL(url);
+    if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("not http(s)");
+  } catch {
+    return res.status(400).json({ error: "url must be a valid http(s) URL" });
+  }
   const info = db.prepare(`INSERT INTO runs (url, objective) VALUES (?, ?)`).run(url, objective);
   const runId = info.lastInsertRowid;
   executeRun(runId, url, objective).catch((err) => {
