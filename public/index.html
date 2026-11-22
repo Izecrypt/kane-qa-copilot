@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>QA Copilot — verified with Kane CLI</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; line-height: 1.5; }
+  h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  .sub { color: #666; margin-bottom: 24px; font-size: 0.95rem; }
+  form { display: grid; gap: 10px; margin-bottom: 32px; }
+  input, button { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid #ccc; }
+  button { cursor: pointer; background: #111; color: #fff; border: none; }
+  button:disabled { opacity: 0.5; cursor: wait; }
+  .run { border: 1px solid #ddd; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+  .run h3 { margin: 0 0 6px; font-size: 1rem; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+  .badge.passed { background: #d4f7dc; color: #0a6b2d; }
+  .badge.failed, .badge.error { background: #fde2e2; color: #a11313; }
+  .badge.running { background: #fff3cd; color: #8a6400; }
+  .attempt { border-left: 3px solid #eee; padding-left: 10px; margin-top: 10px; font-size: 0.92rem; }
+  .attempt.passed { border-color: #0a6b2d; }
+  .attempt.failed { border-color: #a11313; }
+  .bug { background: #fff8e6; padding: 8px 10px; border-radius: 6px; margin-top: 6px; }
+  .rewrite { color: #555; font-style: italic; margin-top: 4px; }
+  a { color: #0645ad; }
+</style>
+</head>
+<body>
+  <h1>QA Copilot</h1>
+  <p class="sub">Paste a deployed URL and describe a flow in plain English. Kane CLI verifies it in a real browser; on failure, the agent reads Kane's own evidence, rewrites the objective, and retries — closing the loop instead of just reporting a result.</p>
+
+  <form id="runForm">
+    <input id="url" placeholder="https://your-deployed-app.example" required />
+    <input id="objective" placeholder="Sign up with email and confirm the dashboard loads" required />
+    <button type="submit">Run with Kane CLI</button>
+  </form>
+
+  <div id="runs"></div>
+
+<script>
+const form = document.getElementById("runForm");
+const runsEl = document.getElementById("runs");
+const polling = new Set();
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const url = document.getElementById("url").value.trim();
+  const objective = document.getElementById("objective").value.trim();
+  form.querySelector("button").disabled = true;
+  try {
+    const res = await fetch("/runs", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({url, objective}) });
+    const { id } = await res.json();
+    poll(id);
+    loadRuns();
+  } finally {
+    form.querySelector("button").disabled = false;
+  }
+});
+
+// All fields below originate from user input, Kane CLI evidence, or LLM
+// output — none of it is trusted, so every value is escaped before it is
+// interpolated into HTML.
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+function verdictBadge(v) {
+  const safe = escapeHtml(v);
+  return `<span class="badge ${safe}">${safe}</span>`;
+}
+
+function renderRun(run) {
+  const attempts = (run.attempts || []).map(a => `
+    <div class="attempt ${escapeHtml(a.verdict)}">
+      <div>Attempt ${escapeHtml(a.attempt_no)}: ${verdictBadge(a.verdict)} — <em>${escapeHtml(a.objective_used)}</em></div>
+      ${a.summary ? `<div>${escapeHtml(a.summary)}</div>` : ""}
+      ${a.test_url ? `<div><a href="${encodeURI(a.test_url)}" target="_blank" rel="noopener noreferrer">Kane run trace ↗</a></div>` : ""}
+      ${a.bug_report ? `<div class="bug"><strong>Bug report:</strong> ${escapeHtml(a.bug_report)}</div>` : ""}
+      ${a.rewritten_objective ? `<div class="rewrite">→ agent rewrote the objective and retried: "${escapeHtml(a.rewritten_objective)}"</div>` : ""}
+    </div>
+  `).join("");
+
+  return `
+    <div class="run" id="run-${escapeHtml(run.id)}">
+      <h3>#${escapeHtml(run.id)} ${verdictBadge(run.status)} ${escapeHtml(run.url)}</h3>
+      <div>${escapeHtml(run.objective)}</div>
+      ${attempts}
+    </div>
+  `;
+}
+
+async function loadRuns() {
+  const res = await fetch("/runs");
+  const runs = await res.json();
+  for (const r of runs) {
+    if (r.status === "running") poll(r.id);
+  }
+  const full = await Promise.all(runs.map(r => fetch(`/runs/${r.id}`).then(x => x.json())));
+  runsEl.innerHTML = full.map(renderRun).join("");
+}
+
+function poll(id) {
+  if (polling.has(id)) return;
+  polling.add(id);
+  const interval = setInterval(async () => {
+    const res = await fetch(`/runs/${id}`);
+    const run = await res.json();
+    const el = document.getElementById(`run-${id}`);
+    if (el) el.outerHTML = renderRun(run);
+    if (run.status !== "running") {
+      clearInterval(interval);
+      polling.delete(id);
+    }
+  }, 2500);
+}
+
+loadRuns();
+</script>
+</body>
+</html>

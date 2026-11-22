@@ -5,8 +5,8 @@
   "description": "Point it at a URL, describe a flow in plain English, Kane CLI verifies it and the agent iterates on failure.",
   "type": "module",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js"
+    "start": "node --env-file=.env src/server.js",
+    "dev": "node --env-file=.env --watch src/server.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",
