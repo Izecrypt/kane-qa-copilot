@@ -151,12 +151,15 @@ Do two things, each on its own line, no extra commentary:
 1. BUG_REPORT: <one tight paragraph a developer could act on tonight — what broke, where, likely cause>
 2. REWRITTEN_OBJECTIVE: <a revised plain-English objective that disambiguates or narrows the flow so Kane CLI can complete it this time, or the single word NONE if no rewrite is likely to help>`;
 
-  // Visitor-supplied key (any provider they picked) tried first; then this
-  // server's own keys, unless BYOK is mandatory on this deployment.
+  // Visitor-supplied key (any provider they picked) tried first; the
+  // server's own keys are only ever used as a fallback when BYOK is NOT
+  // mandatory on this deployment — on a public REQUIRE_BYOK instance, a
+  // visitor with no LLM key just gets the degraded non-LLM bug report
+  // below instead of spending the server's own money.
   const attempts = [];
   if (llmCreds?.provider === "openrouter" && llmCreds?.key) attempts.push(() => callOpenRouter(prompt, llmCreds.key));
   if (llmCreds?.provider === "gemini" && llmCreds?.key) attempts.push(() => callGemini(prompt, llmCreds.key));
-  if (!REQUIRE_BYOK || !llmCreds?.key) {
+  if (!REQUIRE_BYOK) {
     attempts.push(() => callOpenRouter(prompt, process.env.OPENROUTER_API_KEY));
     attempts.push(() => callGemini(prompt, process.env.GOOGLE_API_KEY));
   }
