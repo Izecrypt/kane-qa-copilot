@@ -28,11 +28,12 @@ badge.
 
 It's for anyone shipping with an AI coding agent who wants the agent to
 actually verify its own work instead of asserting it's done. Demoed
-against a real production app (marketcube.trenchesnetwork.xyz, a live
-lead-gen form) rather than a toy fixture: an under-specified objective made
-Kane genuinely fail because the flow skipped required fields, the agent
-diagnosed why from Kane's own evidence, rewrote the objective across two
-real retries, and passed.
+against the-internet.herokuapp.com (Sauce Labs' public QA practice site)
+rather than a business-critical fixture: an objective that claimed a page
+returning a real 500 status code "loads successfully with no error" made
+Kane genuinely fail — a true catch, not a staged one — the agent diagnosed
+why from Kane's own evidence, rewrote the objective to match reality, and
+passed on retry.
 
 ## Anything else to add
 The LLM diagnose/rewrite step tries OpenRouter first, falls back to
