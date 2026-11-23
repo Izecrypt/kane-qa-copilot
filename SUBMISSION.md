@@ -52,7 +52,7 @@ Claude Code
 https://github.com/Izecrypt/kane-qa-copilot
 
 ## Demo video
-[PASTE YOUTUBE LINK HERE]
+https://youtu.be/ExmAUj5-yN4
 
 ## Live URL (optional)
 https://qacopilot.trenchesnetwork.xyz
