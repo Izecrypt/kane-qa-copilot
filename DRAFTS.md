@@ -25,10 +25,13 @@ through Kane CLI in a real browser. When Kane reports a failure, the app
 doesn't stop there — it hands Kane's own evidence to an LLM, gets back a
 bug report and a corrected objective, and retries automatically.
 
-I tested it against one of our own live products rather than a toy demo.
-Gave it a deliberately incomplete instruction. It failed for a real reason,
-diagnosed why, rewrote itself, and passed on the second try — on camera,
-unscripted.
+I demoed it against a public QA practice site (Sauce Labs'
+the-internet.herokuapp.com), not one of my own projects, so there's
+nothing staged about the result. Gave it an objective that claims a page
+returning a real HTTP 500 "loads successfully with no error" — a genuinely
+false claim. Kane caught it for real, the agent diagnosed exactly why from
+Kane's own evidence, rewrote the objective to match reality, and passed on
+the second try — on camera, unscripted.
 
 Built end to end with Claude Code. Repo and demo below.
 
@@ -47,7 +50,10 @@ evidence, writes a bug report, rewrites the objective to fix the
 ambiguity/missing-step, and re-runs it (bounded to 2 retries). Every
 attempt is kept so you can see the whole back-and-forth.
 
-Tested against a real deployed app rather than a fixture — a deliberately
-under-specified instruction made it genuinely fail first, then recover.
+Demoed against a public QA practice site (the-internet.herokuapp.com, run
+by Sauce Labs) rather than a business fixture — an objective claiming a
+real HTTP 500 page "loads successfully with no error" is a genuine false
+claim, not staged ambiguity. Kane fails it for a true reason, the agent
+diagnoses and rewrites, and it passes on retry.
 
 Repo: https://github.com/Izecrypt/kane-qa-copilot
