@@ -281,3 +281,20 @@ form, not wallet-gated, so Kane can drive the whole flow unassisted.
   end to end. Total runtime ~3:01, inside the "about 3 to 5 minutes" brief.
   Final render in progress at time of this entry — see the next entry for
   the finished result and viewer QA.
+
+- 2026-11-23: demo video finished (TTS narration regenerated with a male
+  voice per owner request, edge en-US-GuyNeural, full pipeline rerun end to
+  end — 2:45.6 final), uploaded to YouTube by owner: youtu.be/ExmAUj5-yN4.
+  Launch-post drafts (X, LinkedIn, HN, Reddit) filled with real links and
+  fixed for the vault's standing style rule (no em/en dashes in any public
+  copy) after the owner caught a miss in my first pass — DRAFTS.md and
+  SUBMISSION.md both now clean, verified with a literal grep for both dash
+  characters. Lesson folded into the hackathon-sprint skill so future
+  drafts check vault style rules before the first draft, not after a
+  correction.
+  SUBMITTED 2026-11-23, 08:54 IST, by the owner (password-gated form, their
+  own login): receipt KH-QDNPCB. Form stays editable until the 26 Nov
+  deadline. Open item: confirm the 2+ required launch-post links have
+  actually been pasted into the form's "Launch buzz" field (SUBMISSION.md's
+  local copy still shows the placeholder as of this entry — may just be
+  that the owner filled the live form directly without updating this file).
