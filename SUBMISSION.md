@@ -63,4 +63,5 @@ only; a brand-new signup's auto-selected project should work, a visitor
 with multiple existing TestMu AI projects might not, see PRD.md.)
 
 ## Launch buzz (2+ public posts)
-[PASTE POST LINKS HERE, see DRAFTS.md for suggested copy]
+X: https://x.com/its_izecube/status/2124704405828014318
+LinkedIn: https://www.linkedin.com/feed/update/urn:li:share:7530469977099890688/
