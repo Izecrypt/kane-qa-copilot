@@ -1,0 +1,28 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+body { margin:0; background:#0b0d12; font-family: "SF Mono", ui-monospace, Menlo, monospace; }
+.wrap { padding: 44px 52px; }
+.file { color:#8b93a7; font-size:19px; margin-bottom:16px; }
+.block { margin-bottom: 30px; }
+.ln { color:#4b5363; display:inline-block; width:34px; text-align:right; margin-right:16px; user-select:none; }
+pre { font-size:20px; line-height:1.75; color:#e8eaf0; margin:0; white-space:pre-wrap; }
+.kw { color:#f5c451; } .str { color:#3ddc97; } .com { color:#6b7280; } .fn { color:#6ea8fe; }
+</style></head>
+<body><div class="wrap">
+<div class="file">src/server.js</div>
+<div class="block">
+<pre><span class="ln">144</span><span class="kw">async function</span> <span class="fn">diagnoseFailure</span>({ url, objective, runEnd, llmCreds }) {
+<span class="ln">145</span>  <span class="kw">const</span> prompt = <span class="str">`You are a QA copilot. Kane CLI just ran a browser-automation flow and it FAILED.</span>
+<span class="ln">...</span>  <span class="str">Do two things, each on its own line, no extra commentary:</span>
+<span class="ln">...</span>  <span class="str">1. BUG_REPORT: &lt;one tight paragraph a developer could act on tonight&gt;</span>
+<span class="ln">...</span>  <span class="str">2. REWRITTEN_OBJECTIVE: &lt;a revised objective, or NONE if no rewrite will help&gt;`</span>;</pre>
+</div>
+<div class="block">
+<pre><span class="ln">240</span>    <span class="kw">if</span> (passed) { finalStatus = <span class="str">"passed"</span>; <span class="kw">break</span>; }
+<span class="ln">244</span>    <span class="kw">if</span> (!rewrittenObjective) { finalStatus = <span class="str">"failed"</span>; <span class="kw">break</span>; }
+<span class="ln">248</span>    <span class="com">// loop again with the agent's own correction</span>
+<span class="ln">...</span>    currentObjective = rewrittenObjective;
+<span class="ln">249</span>    attemptNo += <span class="str">1</span>;</pre>
+</div>
+</div></body></html>

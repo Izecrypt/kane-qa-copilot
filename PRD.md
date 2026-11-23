@@ -249,3 +249,35 @@ form, not wallet-gated, so Kane can drive the whole flow unassisted.
   Owner should run one real test with their own key when convenient to
   close this gap; not urgent since local/BYOK-off mode (used for the
   recorded demo) never touches this code path at all.
+
+- 2026-11-23: owner asked to switch the live demo flow to a neutral
+  third-party target rather than any of our own projects, and asked
+  whether showing a face in the video is required. Confirmed from the
+  official page it isn't — only a 3-5 min YouTube video of the app working.
+  Picked https://the-internet.herokuapp.com (Sauce Labs' public QA practice
+  site) with the status_codes page: an objective claiming a real 500
+  response "loads successfully with no error" is a genuine, reproducible
+  false claim, not staged ambiguity. Verified twice live (see run history):
+  attempt 1 fails for a true reason, the agent correctly diagnoses it,
+  rewrites, attempt 2 passes. Updated DEMO_SCRIPT.md and SUBMISSION.md to
+  this target.
+  Then built a full synthetic demo video rather than asking the owner to
+  record manually: TTS narration (10 scripted segments, edge/Aria voice,
+  ~176s spoken), real screenshots captured from an actual live run (not
+  mocked — homepage, filled form, the real FAIL card with its real bug
+  report and rewrite, the real PASS card, the verbatim diagnoseFailure/
+  executeRun code from the real file, a closing card), Ken Burns zoom /
+  crossfade / pulsing-cycle treatment per segment via ffmpeg so it isn't a
+  static slideshow, caption overlays (this ffmpeg build has neither
+  libass/subtitles nor freetype/drawtext compiled in — confirmed via
+  `ffmpeg -filters`, not assumed — so captions are rendered as PNGs in PIL
+  and composited with the `overlay` filter instead, timed per sentence).
+  Caught and fixed a sync bug before the final render: the audio track had
+  0.5s silence gaps between segments that the video track didn't, which
+  would have drifted the whole video out of sync with narration by
+  segment 10; fixed by inserting matching 0.5s held-last-frame clips into
+  the video at the same points. Full pipeline lives in
+  demo-assets/build_video.py and demo-assets/add_captions.py, rerunnable
+  end to end. Total runtime ~3:01, inside the "about 3 to 5 minutes" brief.
+  Final render in progress at time of this entry — see the next entry for
+  the finished result and viewer QA.

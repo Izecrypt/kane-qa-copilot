@@ -3,3 +3,7 @@ data/*.sqlite
 data/*.sqlite-*
 .env
 *.log
+
+# large intermediate render artifacts, regenerate via build_video.py / add_captions.py
+demo-assets/work/
+demo-assets/qa_frames/
